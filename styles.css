@@ -1144,3 +1144,110 @@ body {
         padding: 16px;
     }
 }
+
+/* Uploaded Files List in Sidebar */
+.uploaded-files-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 180px;
+    overflow-y: auto;
+    padding-right: 4px;
+    margin-top: 8px;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background-color: white;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition-fast);
+    gap: 8px;
+    overflow: hidden;
+}
+
+.file-item:hover {
+    border-color: var(--border-hover);
+    background-color: var(--bg-muted);
+}
+
+.file-item.active {
+    border-color: var(--primary);
+    background-color: #fff7ed; /* Very light orange tint */
+}
+
+.file-item-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+    flex: 1;
+}
+
+.file-item-icon {
+    color: var(--primary);
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.file-item-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.file-item-size {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-left: auto;
+    flex-shrink: 0;
+}
+
+.btn-delete-file {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.btn-delete-file:hover {
+    color: #ef4444;
+    background-color: #fef2f2;
+}
+
+/* Batch Download Section */
+.batch-download-section {
+    border-top: 1px solid var(--border-color);
+    margin-top: 16px;
+    padding-top: 16px;
+}
+
+.batch-title {
+    font-family: var(--font-heading);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.batch-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}

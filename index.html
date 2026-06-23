@@ -73,7 +73,7 @@
                 <div class="hero-upload">
                     <div class="upload-card" id="uploadCard">
                         <div class="dropzone" id="dropzone">
-                            <input type="file" id="fileInput" accept=".vtt" style="display: none;">
+                            <input type="file" id="fileInput" accept=".vtt" multiple style="display: none;">
                             <div class="dropzone-content">
                                 <div class="file-icon-container">
                                     <i data-lucide="file-text" class="file-icon"></i>
@@ -116,6 +116,16 @@
                     <div class="workspace-grid">
                         <!-- Sidebar Settings -->
                         <div class="workspace-sidebar">
+                            <!-- Uploaded Files List -->
+                            <div class="settings-group" id="fileListGroup" style="display: none;">
+                                <h4 class="settings-group-title">
+                                    <i data-lucide="files" class="inline-icon"></i> Arquivos da Fila (<span id="fileCount">0</span>)
+                                </h4>
+                                <div class="uploaded-files-list" id="uploadedFilesList">
+                                    <!-- Injected dynamically -->
+                                </div>
+                            </div>
+
                             <div class="settings-group">
                                 <h4 class="settings-group-title">
                                     <i data-lucide="settings" class="inline-icon"></i> Configurações de Limpeza
@@ -194,6 +204,20 @@
                                 <button class="btn-outline btn-full" style="margin-top: 10px;" id="btnPrintPdf">
                                     <i data-lucide="printer" class="btn-icon"></i> Imprimir / PDF
                                 </button>
+
+                                <!-- Batch Download Section -->
+                                <div class="batch-download-section" id="batchDownloadSection" style="display: none;">
+                                    <h5 class="batch-title">Download em Lote (<span id="batchCount">0</span>)</h5>
+                                    <div class="batch-buttons">
+                                        <button class="btn-secondary btn-full" id="btnDownloadAllDocx">
+                                            <i data-lucide="folder-archive" class="btn-icon"></i> Salvar Todos (Word)
+                                        </button>
+                                        <div class="secondary-actions-grid">
+                                            <button class="btn-secondary" id="btnDownloadAllMd">Todos (.md)</button>
+                                            <button class="btn-secondary" id="btnDownloadAllTxt">Todos (.txt)</button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 

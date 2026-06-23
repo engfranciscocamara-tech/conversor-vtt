@@ -36,10 +36,20 @@ document.addEventListener("DOMContentLoaded", () => {
     const toolCards = document.querySelectorAll(".tool-card");
 
     // State Variables
-    let currentFileContent = "";
-    let currentFileName = "";
-    let currentFileSize = "";
-    let convertedData = null;
+    let uploadedFiles = [];
+    let activeFileId = null;
+
+    // Files Queue Elements
+    const fileListGroup = document.getElementById("fileListGroup");
+    const uploadedFilesList = document.getElementById("uploadedFilesList");
+    const fileCount = document.getElementById("fileCount");
+    const batchDownloadSection = document.getElementById("batchDownloadSection");
+    const batchCount = document.getElementById("batchCount");
+
+    // Batch download buttons
+    const btnDownloadAllDocx = document.getElementById("btnDownloadAllDocx");
+    const btnDownloadAllMd = document.getElementById("btnDownloadAllMd");
+    const btnDownloadAllTxt = document.getElementById("btnDownloadAllTxt");
 
     // Initialize Lucide Icons
     if (window.lucide) {
@@ -76,7 +86,7 @@ document.addEventListener("DOMContentLoaded", () => {
         
         const files = e.dataTransfer.files;
         if (files.length > 0) {
-            handleFile(files[0]);
+            handleFiles(files);
         }
     });
 
@@ -86,7 +96,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     fileInput.addEventListener("change", (e) => {
         if (e.target.files.length > 0) {
-            handleFile(e.target.files[0]);
+            handleFiles(e.target.files);
         }
     });
 
@@ -123,7 +133,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const settingsElements = [chkRemoveTimestamps, chkCleanTags, chkMergeLines, selParagraphs, selHeaders];
     settingsElements.forEach(el => {
         el.addEventListener("change", () => {
-            if (currentFileContent) {
+            if (uploadedFiles.length > 0) {
                 processAndPreview();
             }
         });
@@ -197,20 +207,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // --- Downloads ---
     btnDownloadTxt.addEventListener("click", () => {
-        if (convertedData) {
-            downloadTextFile(currentFileName, convertedData.text, "txt");
+        const activeFile = uploadedFiles.find(f => f.id === activeFileId);
+        if (activeFile && activeFile.convertedData) {
+            downloadTextFile(activeFile.name, activeFile.convertedData.text, "txt");
         }
     });
 
     btnDownloadMd.addEventListener("click", () => {
-        if (convertedData) {
-            downloadTextFile(currentFileName, convertedData.markdown, "md");
+        const activeFile = uploadedFiles.find(f => f.id === activeFileId);
+        if (activeFile && activeFile.convertedData) {
+            downloadTextFile(activeFile.name, activeFile.convertedData.markdown, "md");
         }
     });
 
     btnDownloadDocx.addEventListener("click", () => {
-        if (convertedData) {
-            downloadDocx(currentFileName, convertedData.docxItems);
+        const activeFile = uploadedFiles.find(f => f.id === activeFileId);
+        if (activeFile && activeFile.convertedData) {
+            downloadDocx(activeFile.name, activeFile.convertedData.docxItems);
         }
     });
 
@@ -223,12 +236,60 @@ document.addEventListener("DOMContentLoaded", () => {
         window.print();
     });
 
+    // --- Batch Downloads ---
+    function getCurrentOptions() {
+        return {
+            removeTimestamps: chkRemoveTimestamps.checked,
+            cleanTags: chkCleanTags.checked,
+            mergeLines: chkMergeLines.checked,
+            paragraphSize: selParagraphs.value,
+            intervalMinutes: selHeaders.value
+        };
+    }
+
+    btnDownloadAllTxt.addEventListener("click", () => {
+        const options = getCurrentOptions();
+        uploadedFiles.forEach((file, index) => {
+            const data = convertVTT(file.rawContent, options);
+            setTimeout(() => {
+                downloadTextFile(file.name, data.text, "txt");
+            }, index * 300);
+        });
+        showToast(`Iniciando download de ${uploadedFiles.length} arquivos txt...`);
+    });
+
+    btnDownloadAllMd.addEventListener("click", () => {
+        const options = getCurrentOptions();
+        uploadedFiles.forEach((file, index) => {
+            const data = convertVTT(file.rawContent, options);
+            setTimeout(() => {
+                downloadTextFile(file.name, data.markdown, "md");
+            }, index * 300);
+        });
+        showToast(`Iniciando download de ${uploadedFiles.length} arquivos md...`);
+    });
+
+    btnDownloadAllDocx.addEventListener("click", () => {
+        if (!window.docx) {
+            showToast("A biblioteca Word (docx) ainda está carregando. Por favor, aguarde.");
+            return;
+        }
+        const options = getCurrentOptions();
+        uploadedFiles.forEach((file, index) => {
+            const data = convertVTT(file.rawContent, options);
+            setTimeout(() => {
+                downloadDocx(file.name, data.docxItems);
+            }, index * 450); // slightly larger delay for docx zip compilation
+        });
+        showToast(`Iniciando download de ${uploadedFiles.length} arquivos docx...`);
+    });
+
     // --- Tools Grid Interactivity ---
     toolCards.forEach(card => {
         card.addEventListener("click", () => {
             const format = card.getAttribute("data-target-format");
             
-            if (currentFileContent && convertedData) {
+            if (uploadedFiles.length > 0) {
                 // If file is already uploaded, trigger download directly!
                 if (format === "txt") {
                     btnDownloadTxt.click();
@@ -267,46 +328,140 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // --- Core File Handling ---
-    function handleFile(file) {
-        if (!file.name.endsWith(".vtt")) {
-            showToast("Formato inválido! Por favor, selecione um arquivo .vtt.");
-            return;
+    function handleFiles(filesList) {
+        const filePromises = [];
+        
+        for (let i = 0; i < filesList.length; i++) {
+            const file = filesList[i];
+            if (!file.name.endsWith(".vtt")) {
+                showToast(`Arquivo "${file.name}" ignorado: formato inválido.`);
+                continue;
+            }
+            
+            // Check if file already exists in queue to avoid duplicates
+            if (uploadedFiles.some(f => f.name === file.name && f.size === file.size)) {
+                continue; 
+            }
+
+            const promise = new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    resolve({
+                        id: 'file-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                        name: file.name,
+                        size: file.size,
+                        formattedSize: formatBytes(file.size),
+                        rawContent: e.target.result,
+                        convertedData: null
+                    });
+                };
+                reader.readAsText(file);
+            });
+            filePromises.push(promise);
         }
 
-        currentFileName = file.name;
-        currentFileSize = formatBytes(file.size);
+        if (filePromises.length === 0) return;
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            currentFileContent = e.target.result;
+        Promise.all(filePromises).then((newFiles) => {
+            const isFirstUpload = uploadedFiles.length === 0;
             
-            // Set filenames and UI details
-            fileNameDisplay.textContent = currentFileName;
-            fileSizeDisplay.textContent = currentFileSize;
+            // Add new files to our list
+            uploadedFiles = [...uploadedFiles, ...newFiles];
             
-            // Process content
-            processAndPreview();
-            
-            // Toggle view state
+            if (isFirstUpload) {
+                // Set first file active
+                activeFileId = newFiles[0].id;
+            }
+
+            // Update UI view states
             document.getElementById("heroSection").style.display = "none";
             document.getElementById("tools").style.display = "none";
             workspaceSection.style.display = "block";
             
-            // Scroll to workspace
+            // Render file list & update preview
+            renderFileList();
+            processAndPreview();
+            
             window.scrollTo({ top: 0, behavior: "smooth" });
-            showToast("Arquivo carregado com sucesso!");
-        };
-        reader.onerror = () => {
-            showToast("Erro ao ler o arquivo.");
-        };
-        reader.readAsText(file);
+            showToast(`${newFiles.length} arquivo(s) carregado(s)!`);
+        });
+    }
+
+    function renderFileList() {
+        uploadedFilesList.innerHTML = "";
+        
+        if (uploadedFiles.length > 1) {
+            fileListGroup.style.display = "flex";
+            batchDownloadSection.style.display = "block";
+            batchCount.textContent = uploadedFiles.length;
+            fileCount.textContent = uploadedFiles.length;
+        } else {
+            fileListGroup.style.display = "none";
+            batchDownloadSection.style.display = "none";
+        }
+
+        uploadedFiles.forEach(file => {
+            const isActive = file.id === activeFileId;
+            const fileItem = document.createElement("div");
+            fileItem.className = `file-item ${isActive ? 'active' : ''}`;
+            fileItem.setAttribute("data-id", file.id);
+            
+            fileItem.innerHTML = `
+                <div class="file-item-info">
+                    <i data-lucide="file" class="file-item-icon"></i>
+                    <span class="file-item-name" title="${file.name}">${file.name}</span>
+                    <span class="file-item-size">${file.formattedSize}</span>
+                </div>
+                <button class="btn-delete-file" title="Remover da fila">
+                    <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                </button>
+            `;
+            
+            // Clicking item selects active file
+            fileItem.querySelector(".file-item-info").addEventListener("click", () => {
+                activeFileId = file.id;
+                renderFileList();
+                processAndPreview();
+            });
+            
+            // Delete button click
+            fileItem.querySelector(".btn-delete-file").addEventListener("click", (e) => {
+                e.stopPropagation(); // Avoid selecting it before deleting
+                removeFile(file.id);
+            });
+            
+            uploadedFilesList.appendChild(fileItem);
+        });
+
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
+
+    function removeFile(id) {
+        const index = uploadedFiles.findIndex(f => f.id === id);
+        if (index === -1) return;
+        
+        uploadedFiles.splice(index, 1);
+        
+        if (uploadedFiles.length === 0) {
+            resetState();
+            return;
+        }
+        
+        if (activeFileId === id) {
+            // Set active to first remaining
+            activeFileId = uploadedFiles[0].id;
+        }
+        
+        renderFileList();
+        processAndPreview();
+        showToast("Arquivo removido.");
     }
 
     function resetState() {
-        currentFileContent = "";
-        currentFileName = "";
-        currentFileSize = "";
-        convertedData = null;
+        uploadedFiles = [];
+        activeFileId = null;
         fileInput.value = ""; // Reset file input
         
         document.getElementById("heroSection").style.display = "block";
@@ -315,11 +470,20 @@ document.addEventListener("DOMContentLoaded", () => {
         
         cleanedPreview.innerHTML = "";
         originalPreview.textContent = "";
+        
+        // Hide file list container
+        fileListGroup.style.display = "none";
+        batchDownloadSection.style.display = "none";
     }
 
     // --- Processing & Rendering ---
     function processAndPreview() {
-        if (!currentFileContent) return;
+        const activeFile = uploadedFiles.find(f => f.id === activeFileId);
+        if (!activeFile) return;
+
+        // Set filenames and UI details
+        fileNameDisplay.textContent = activeFile.name;
+        fileSizeDisplay.textContent = activeFile.formattedSize;
 
         // Settings object
         const options = {
@@ -331,14 +495,15 @@ document.addEventListener("DOMContentLoaded", () => {
         };
 
         // Convert
-        convertedData = convertVTT(currentFileContent, options);
+        activeFile.convertedData = convertVTT(activeFile.rawContent, options);
 
         // Render Original VTT
-        originalPreview.textContent = currentFileContent;
+        originalPreview.textContent = activeFile.rawContent;
 
         // Render Cleaned HTML preview
-        renderCleanedPreview(convertedData.markdown);
+        renderCleanedPreview(activeFile.convertedData.markdown);
     }
+
 
     function renderCleanedPreview(markdownText) {
         // Standard markdown rendering helper (simple client-side formatter)
