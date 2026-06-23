@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversor VTT - Transforme Legendas em Textos e Artigos</title>
+    <meta name="description" content="Converta arquivos WebVTT (.vtt) de aulas e reuniões em Markdown (.md), Texto Limpo (.txt) ou Documento Word (.docx) instantaneamente no navegador.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- docx Library -->
+    <script src="https://unpkg.com/docx@8.5.0/build/index.js"></script>
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Top Bar Header -->
+    <header class="top-header">
+        <div class="container header-container">
+            <div class="logo">
+                <i data-lucide="refresh-cw" class="logo-icon"></i>
+                <span class="logo-text">VTT<span class="gradient-text">Convert</span></span>
+            </div>
+            <nav class="nav-links">
+                <a href="#home" class="active">Início</a>
+                <a href="#tools">Formatos</a>
+                <a href="https://github.com" target="_blank" rel="noopener">GitHub</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main-content" id="home">
+        <!-- Hero Section -->
+        <section class="hero-section" id="heroSection">
+            <div class="container hero-grid">
+                <!-- Left: Info & Features -->
+                <div class="hero-info">
+                    <h1 class="hero-title">Converta Aulas em <span class="gradient-text">Textos Organizados</span></h1>
+                    <p class="hero-subtitle">Transforme arquivos de legenda WebVTT (.vtt) em Markdown, Texto Limpo ou documentos do Word perfeitamente formatados.</p>
+                    
+                    <ul class="features-list">
+                        <li>
+                            <div class="feature-icon-wrapper">
+                                <i data-lucide="check" class="feature-check-icon"></i>
+                            </div>
+                            <div class="feature-text">
+                                <strong>Remoção Inteligente de Timestamps:</strong> Limpa todos os códigos de tempo, números de sequência e cabeçalhos em milissegundos.
+                            </div>
+                        </li>
+                        <li>
+                            <div class="feature-icon-wrapper">
+                                <i data-lucide="check" class="feature-check-icon"></i>
+                            </div>
+                            <div class="feature-text">
+                                <strong>Reconstrução de Parágrafos:</strong> Junta frases quebradas das legendas em parágrafos fluídos e legíveis.
+                            </div>
+                        </li>
+                        <li>
+                            <div class="feature-icon-wrapper">
+                                <i data-lucide="check" class="feature-check-icon"></i>
+                            </div>
+                            <div class="feature-text">
+                                <strong>Privacidade Total (Local-First):</strong> Seus arquivos nunca são enviados a servidores. Tudo é processado inteiramente em seu navegador.
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Right: Upload Box -->
+                <div class="hero-upload">
+                    <div class="upload-card" id="uploadCard">
+                        <div class="dropzone" id="dropzone">
+                            <input type="file" id="fileInput" accept=".vtt" style="display: none;">
+                            <div class="dropzone-content">
+                                <div class="file-icon-container">
+                                    <i data-lucide="file-text" class="file-icon"></i>
+                                    <span class="file-type-badge">VTT</span>
+                                </div>
+                                <h3 class="dropzone-title">Carregue suas Legendas</h3>
+                                <p class="dropzone-desc">Arraste e solte o arquivo VTT aqui ou use o botão abaixo</p>
+                                <span class="dropzone-or">ou</span>
+                                <button class="btn-primary btn-upload" id="uploadBtn">
+                                    SELECIONAR VTT PARA CONVERTER
+                                </button>
+                            </div>
+                        </div>
+                        <div class="upload-footer">
+                            <i data-lucide="lock" class="lock-icon"></i>
+                            <span>Processamento 100% local e seguro</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Workspace Section (Hidden initially, shown after file upload) -->
+        <section class="workspace-section" id="workspaceSection" style="display: none;">
+            <div class="container">
+                <div class="workspace-card">
+                    <div class="workspace-header">
+                        <div class="file-info-header">
+                            <i data-lucide="file" class="file-icon-small"></i>
+                            <div>
+                                <h3 class="uploaded-filename" id="fileNameDisplay">nome_do_arquivo.vtt</h3>
+                                <p class="uploaded-filesize" id="fileSizeDisplay">0 KB</p>
+                            </div>
+                        </div>
+                        <button class="btn-text" id="btnReset">
+                            <i data-lucide="x" class="reset-icon"></i> Limpar e Voltar
+                        </button>
+                    </div>
+
+                    <div class="workspace-grid">
+                        <!-- Sidebar Settings -->
+                        <div class="workspace-sidebar">
+                            <div class="settings-group">
+                                <h4 class="settings-group-title">
+                                    <i data-lucide="settings" class="inline-icon"></i> Configurações de Limpeza
+                                </h4>
+                                
+                                <div class="setting-item">
+                                    <label class="toggle-control">
+                                        <input type="checkbox" id="chkRemoveTimestamps" checked>
+                                        <span class="control-indicator"></span>
+                                        <span class="control-label">Remover Timestamps</span>
+                                    </label>
+                                    <p class="setting-help">Remove marcações de tempo (ex: 00:01:23 --> 00:01:25)</p>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label class="toggle-control">
+                                        <input type="checkbox" id="chkCleanTags" checked>
+                                        <span class="control-indicator"></span>
+                                        <span class="control-label">Limpar Tags de Formatação</span>
+                                    </label>
+                                    <p class="setting-help">Remove marcações de voz e estilos (ex: &lt;v Palestrante&gt;, &lt;c&gt;)</p>
+                                </div>
+
+                                <div class="setting-item">
+                                    <label class="toggle-control">
+                                        <input type="checkbox" id="chkMergeLines" checked>
+                                        <span class="control-indicator"></span>
+                                        <span class="control-label">Mesclar Linhas Curtas</span>
+                                    </label>
+                                    <p class="setting-help">Junta falas quebradas consecutivas para criar parágrafos naturais</p>
+                                </div>
+                            </div>
+
+                            <div class="settings-group">
+                                <h4 class="settings-group-title">
+                                    <i data-lucide="layout" class="inline-icon"></i> Layout do Documento
+                                </h4>
+
+                                <div class="setting-field">
+                                    <label for="selParagraphs" class="field-label">Tamanho dos Parágrafos</label>
+                                    <select id="selParagraphs" class="field-select">
+                                        <option value="continuous">Texto Corrido (Sem parágrafos)</option>
+                                        <option value="short">Parágrafos Curtos (2-3 frases)</option>
+                                        <option value="medium" selected>Parágrafos Médios (5-6 frases)</option>
+                                        <option value="long">Parágrafos Longos (8+ frases)</option>
+                                        <option value="speaker">Por Mudança de Palestrante</option>
+                                    </select>
+                                </div>
+
+                                <div class="setting-field">
+                                    <label for="selHeaders" class="field-label">Inserir Marcador de Tempo</label>
+                                    <select id="selHeaders" class="field-select">
+                                        <option value="none" selected>Não inserir</option>
+                                        <option value="1">A cada 1 minuto</option>
+                                        <option value="5">A cada 5 minutos</option>
+                                        <option value="10">A cada 10 minutos</option>
+                                    </select>
+                                    <p class="setting-help">Adiciona títulos com o timestamp no Markdown/Word</p>
+                                </div>
+                            </div>
+
+                            <!-- Downloads Panel -->
+                            <div class="download-actions-card">
+                                <h4 class="actions-card-title">Baixar Arquivo</h4>
+                                <button class="btn-primary btn-full" id="btnDownloadDocx" disabled>
+                                    <div class="spinner btn-icon"></div> Carregando biblioteca...
+                                </button>
+                                <div class="secondary-actions-grid">
+                                    <button class="btn-secondary" id="btnDownloadMd">
+                                        <i data-lucide="file-code" class="btn-icon"></i> Markdown (.md)
+                                    </button>
+                                    <button class="btn-secondary" id="btnDownloadTxt">
+                                        <i data-lucide="file-type" class="btn-icon"></i> Texto (.txt)
+                                    </button>
+                                </div>
+                                <button class="btn-outline btn-full" style="margin-top: 10px;" id="btnPrintPdf">
+                                    <i data-lucide="printer" class="btn-icon"></i> Imprimir / PDF
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Right Live Preview -->
+                        <div class="workspace-preview-panel">
+                            <div class="preview-tabs">
+                                <button class="tab-btn active" data-tab="tab-cleaned">Texto Limpo</button>
+                                <button class="tab-btn" data-tab="tab-original">Original VTT</button>
+                                
+                                <button class="btn-copy" id="btnCopyToClipboard" title="Copiar texto para a área de transferência">
+                                    <i data-lucide="copy" class="copy-icon"></i> <span>Copiar Texto</span>
+                                </button>
+                            </div>
+
+                            <div class="tab-contents">
+                                <div class="tab-content active" id="tab-cleaned">
+                                    <div class="preview-area readable-text" id="cleanedPreview">
+                                        O texto convertido aparecerá aqui...
+                                    </div>
+                                </div>
+                                <div class="tab-content" id="tab-original">
+                                    <div class="preview-area source-code" id="originalPreview">
+                                        O arquivo VTT original aparecerá aqui...
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tools Grid Section (Inspired by PDFSimpli Grid) -->
+        <section class="tools-grid-section" id="tools">
+            <div class="container">
+                <div class="section-header">
+                    <h2 class="section-title">Acesso Gratuito a Todos os Formatos</h2>
+                    <p class="section-desc">Selecione o formato desejado para sua aula ou reunião gravada</p>
+                </div>
+
+                <div class="tools-grid">
+                    <!-- Markdown Card -->
+                    <div class="tool-card purple-theme" data-target-format="md">
+                        <div class="tool-card-icon-wrapper">
+                            <i data-lucide="file-code" class="tool-card-icon"></i>
+                        </div>
+                        <h3 class="tool-card-title">VTT para Markdown</h3>
+                        <p class="tool-card-desc">Converte legendas em formato Markdown (.md), mantendo palestrantes em negrito e inserindo títulos.</p>
+                        <span class="tool-card-action">Converter para MD &rarr;</span>
+                    </div>
+
+                    <!-- Word Card -->
+                    <div class="tool-card blue-theme" data-target-format="docx">
+                        <div class="tool-card-icon-wrapper">
+                            <i data-lucide="file-text" class="tool-card-icon"></i>
+                        </div>
+                        <h3 class="tool-card-title">VTT para Word (Docx)</h3>
+                        <p class="tool-card-desc">Gera um documento do Microsoft Word (.docx) formatado profissionalmente, pronto para edição e leitura offline.</p>
+                        <span class="tool-card-action">Converter para Word &rarr;</span>
+                    </div>
+
+                    <!-- Plain Text Card -->
+                    <div class="tool-card green-theme" data-target-format="txt">
+                        <div class="tool-card-icon-wrapper">
+                            <i data-lucide="file-type" class="tool-card-icon"></i>
+                        </div>
+                        <h3 class="tool-card-title">VTT para Texto Puro</h3>
+                        <p class="tool-card-desc">Limpa todos os tempos e códigos extras, gerando um bloco contínuo de texto limpo (.txt).</p>
+                        <span class="tool-card-action">Converter para TXT &rarr;</span>
+                    </div>
+
+                    <!-- PDF Card -->
+                    <div class="tool-card red-theme" data-target-format="pdf">
+                        <div class="tool-card-icon-wrapper">
+                            <i data-lucide="printer" class="tool-card-icon"></i>
+                        </div>
+                        <h3 class="tool-card-title">VTT para Impressão/PDF</h3>
+                        <p class="tool-card-desc">Abre a visualização de impressão otimizada para você salvar como PDF ou imprimir sua aula limpa.</p>
+                        <span class="tool-card-action">Imprimir ou Salvar PDF &rarr;</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container footer-container">
+            <p>&copy; 2026 VTTConvert. Processamento local no navegador. Nenhum dado é coletado ou transmitido.</p>
+            <div class="footer-links">
+                <a href="#home">Voltar ao topo</a>
+                <span>&bull;</span>
+                <span class="privacy-badge"><i data-lucide="shield-check" class="shield-icon"></i> 100% Seguro</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="app.js"></script>
+</body>
+</html>

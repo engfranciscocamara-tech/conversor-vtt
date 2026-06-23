@@ -1,0 +1,780 @@
+document.addEventListener("DOMContentLoaded", () => {
+    // DOM Elements
+    const dropzone = document.getElementById("dropzone");
+    const fileInput = document.getElementById("fileInput");
+    const uploadBtn = document.getElementById("uploadBtn");
+    const workspaceSection = document.getElementById("workspaceSection");
+    const fileNameDisplay = document.getElementById("fileNameDisplay");
+    const fileSizeDisplay = document.getElementById("fileSizeDisplay");
+    const btnReset = document.getElementById("btnReset");
+    
+    // Setting Toggles & Selects
+    const chkRemoveTimestamps = document.getElementById("chkRemoveTimestamps");
+    const chkCleanTags = document.getElementById("chkCleanTags");
+    const chkMergeLines = document.getElementById("chkMergeLines");
+    const selParagraphs = document.getElementById("selParagraphs");
+    const selHeaders = document.getElementById("selHeaders");
+    
+    // Download Buttons
+    const btnDownloadDocx = document.getElementById("btnDownloadDocx");
+    const btnDownloadMd = document.getElementById("btnDownloadMd");
+    const btnDownloadTxt = document.getElementById("btnDownloadTxt");
+    const btnPrintPdf = document.getElementById("btnPrintPdf");
+    
+    // Clipboard Copy
+    const btnCopyToClipboard = document.getElementById("btnCopyToClipboard");
+    
+    // Previews
+    const cleanedPreview = document.getElementById("cleanedPreview");
+    const originalPreview = document.getElementById("originalPreview");
+    
+    // Tabs
+    const tabBtns = document.querySelectorAll(".tab-btn");
+    const tabContents = document.querySelectorAll(".tab-content");
+    
+    // Tool Cards
+    const toolCards = document.querySelectorAll(".tool-card");
+
+    // State Variables
+    let currentFileContent = "";
+    let currentFileName = "";
+    let currentFileSize = "";
+    let convertedData = null;
+
+    // Initialize Lucide Icons
+    if (window.lucide) {
+        window.lucide.createIcons();
+    }
+
+    // Check if docx is loaded, if not show spinner and disable button
+    function checkDocxLibrary() {
+        if (window.docx) {
+            btnDownloadDocx.disabled = false;
+            btnDownloadDocx.innerHTML = '<i data-lucide="file-text" class="btn-icon"></i> Baixar Documento Word (.docx)';
+            if (window.lucide) window.lucide.createIcons();
+        } else {
+            // Keep checking
+            btnDownloadDocx.disabled = true;
+            setTimeout(checkDocxLibrary, 300);
+        }
+    }
+    checkDocxLibrary();
+
+    // --- Drag & Drop Event Listeners ---
+    dropzone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropzone.classList.add("dragover");
+    });
+
+    dropzone.addEventListener("dragleave", () => {
+        dropzone.classList.remove("dragover");
+    });
+
+    dropzone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropzone.classList.remove("dragover");
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFile(files[0]);
+        }
+    });
+
+    uploadBtn.addEventListener("click", () => {
+        fileInput.click();
+    });
+
+    fileInput.addEventListener("change", (e) => {
+        if (e.target.files.length > 0) {
+            handleFile(e.target.files[0]);
+        }
+    });
+
+    // --- Tab Switching ---
+    tabBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            const targetTab = btn.getAttribute("data-tab");
+            
+            // Toggle active classes on buttons
+            tabBtns.forEach(b => {
+                // Keep the copy button intact
+                if (b !== btnCopyToClipboard) {
+                    b.classList.remove("active");
+                }
+            });
+            btn.classList.add("active");
+            
+            // Toggle active classes on tab contents
+            tabContents.forEach(content => {
+                if (content.id === targetTab) {
+                    content.classList.add("active");
+                } else {
+                    content.classList.remove("active");
+                }
+            });
+
+            // Update Copy button text/icon depending on tab
+            const copySpan = btnCopyToClipboard.querySelector("span");
+            copySpan.textContent = targetTab === "tab-cleaned" ? "Copiar Texto" : "Copiar VTT";
+        });
+    });
+
+    // --- Settings Change Listeners ---
+    const settingsElements = [chkRemoveTimestamps, chkCleanTags, chkMergeLines, selParagraphs, selHeaders];
+    settingsElements.forEach(el => {
+        el.addEventListener("change", () => {
+            if (currentFileContent) {
+                processAndPreview();
+            }
+        });
+    });
+
+    // --- Navigation Links Interactions ---
+    const navLinks = document.querySelectorAll(".nav-links a");
+    navLinks.forEach(link => {
+        link.addEventListener("click", (e) => {
+            const href = link.getAttribute("href");
+            
+            if (href === "#home") {
+                if (workspaceSection.style.display === "block") {
+                    e.preventDefault();
+                    resetState();
+                }
+            } else if (href === "#tools") {
+                if (workspaceSection.style.display === "block") {
+                    e.preventDefault();
+                    const downloadCard = document.querySelector(".download-actions-card");
+                    downloadCard.classList.remove("highlight");
+                    void downloadCard.offsetWidth; // Trigger reflow
+                    downloadCard.classList.add("highlight");
+                    
+                    // Scroll it into view just in case (though it is sticky)
+                    downloadCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                }
+            }
+        });
+    });
+
+    // --- Reset ---
+    btnReset.addEventListener("click", () => {
+        resetState();
+    });
+
+    // --- Copy to Clipboard ---
+    btnCopyToClipboard.addEventListener("click", () => {
+        const activeTab = document.querySelector(".tab-content.active");
+        let textToCopy = "";
+
+        if (activeTab.id === "tab-cleaned") {
+            // Reconstruct plain text from preview area (ignoring HTML tags if formatted, or simple textContent)
+            textToCopy = cleanedPreview.innerText;
+        } else {
+            textToCopy = originalPreview.textContent;
+        }
+
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            showToast("Conteúdo copiado!");
+            // Visual micro-feedback on button
+            const copyIcon = btnCopyToClipboard.querySelector("i");
+            const copySpan = btnCopyToClipboard.querySelector("span");
+            const originalIcon = copyIcon.getAttribute("data-lucide");
+            const originalText = copySpan.textContent;
+
+            copyIcon.setAttribute("data-lucide", "check");
+            copySpan.textContent = "Copiado!";
+            if (window.lucide) window.lucide.createIcons();
+
+            setTimeout(() => {
+                copyIcon.setAttribute("data-lucide", originalIcon);
+                copySpan.textContent = originalText;
+                if (window.lucide) window.lucide.createIcons();
+            }, 1500);
+        }).catch(err => {
+            console.error("Falha ao copiar:", err);
+            showToast("Falha ao copiar o texto.");
+        });
+    });
+
+    // --- Downloads ---
+    btnDownloadTxt.addEventListener("click", () => {
+        if (convertedData) {
+            downloadTextFile(currentFileName, convertedData.text, "txt");
+        }
+    });
+
+    btnDownloadMd.addEventListener("click", () => {
+        if (convertedData) {
+            downloadTextFile(currentFileName, convertedData.markdown, "md");
+        }
+    });
+
+    btnDownloadDocx.addEventListener("click", () => {
+        if (convertedData) {
+            downloadDocx(currentFileName, convertedData.docxItems);
+        }
+    });
+
+    btnPrintPdf.addEventListener("click", () => {
+        // Automatically switch to Cleaned tab first to print clean content
+        const cleanedTabBtn = document.querySelector('[data-tab="tab-cleaned"]');
+        if (cleanedTabBtn) {
+            cleanedTabBtn.click();
+        }
+        window.print();
+    });
+
+    // --- Tools Grid Interactivity ---
+    toolCards.forEach(card => {
+        card.addEventListener("click", () => {
+            const format = card.getAttribute("data-target-format");
+            
+            if (currentFileContent && convertedData) {
+                // If file is already uploaded, trigger download directly!
+                if (format === "txt") {
+                    btnDownloadTxt.click();
+                } else if (format === "md") {
+                    btnDownloadMd.click();
+                } else if (format === "docx") {
+                    if (btnDownloadDocx.disabled) {
+                        showToast("A biblioteca Word (docx) ainda está carregando. Por favor, aguarde.");
+                    } else {
+                        btnDownloadDocx.click();
+                    }
+                } else if (format === "pdf") {
+                    btnPrintPdf.click();
+                }
+            } else {
+                // Scroll to upload card and shake it to call attention
+                const uploadCard = document.getElementById("uploadCard");
+                document.getElementById("heroSection").scrollIntoView({ behavior: "smooth" });
+                
+                // Add shake animation
+                setTimeout(() => {
+                    uploadCard.style.transform = "scale(1.05)";
+                    uploadCard.style.boxShadow = "0 20px 25px -5px rgba(239, 68, 68, 0.25)";
+                    dropzone.style.borderColor = "var(--primary)";
+                    
+                    setTimeout(() => {
+                        uploadCard.style.transform = "";
+                        uploadCard.style.boxShadow = "";
+                        dropzone.style.borderColor = "";
+                    }, 800);
+                }, 400);
+
+                showToast("Por favor, carregue um arquivo VTT primeiro.");
+            }
+        });
+    });
+
+    // --- Core File Handling ---
+    function handleFile(file) {
+        if (!file.name.endsWith(".vtt")) {
+            showToast("Formato inválido! Por favor, selecione um arquivo .vtt.");
+            return;
+        }
+
+        currentFileName = file.name;
+        currentFileSize = formatBytes(file.size);
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            currentFileContent = e.target.result;
+            
+            // Set filenames and UI details
+            fileNameDisplay.textContent = currentFileName;
+            fileSizeDisplay.textContent = currentFileSize;
+            
+            // Process content
+            processAndPreview();
+            
+            // Toggle view state
+            document.getElementById("heroSection").style.display = "none";
+            document.getElementById("tools").style.display = "none";
+            workspaceSection.style.display = "block";
+            
+            // Scroll to workspace
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            showToast("Arquivo carregado com sucesso!");
+        };
+        reader.onerror = () => {
+            showToast("Erro ao ler o arquivo.");
+        };
+        reader.readAsText(file);
+    }
+
+    function resetState() {
+        currentFileContent = "";
+        currentFileName = "";
+        currentFileSize = "";
+        convertedData = null;
+        fileInput.value = ""; // Reset file input
+        
+        document.getElementById("heroSection").style.display = "block";
+        document.getElementById("tools").style.display = "block";
+        workspaceSection.style.display = "none";
+        
+        cleanedPreview.innerHTML = "";
+        originalPreview.textContent = "";
+    }
+
+    // --- Processing & Rendering ---
+    function processAndPreview() {
+        if (!currentFileContent) return;
+
+        // Settings object
+        const options = {
+            removeTimestamps: chkRemoveTimestamps.checked,
+            cleanTags: chkCleanTags.checked,
+            mergeLines: chkMergeLines.checked,
+            paragraphSize: selParagraphs.value,
+            intervalMinutes: selHeaders.value
+        };
+
+        // Convert
+        convertedData = convertVTT(currentFileContent, options);
+
+        // Render Original VTT
+        originalPreview.textContent = currentFileContent;
+
+        // Render Cleaned HTML preview
+        renderCleanedPreview(convertedData.markdown);
+    }
+
+    function renderCleanedPreview(markdownText) {
+        // Standard markdown rendering helper (simple client-side formatter)
+        let html = markdownText;
+        
+        // Escape HTML tags to show them properly if raw, but here we render formatted structure
+        // 1. Replace section headers: ### [05:00] -> <h3>[05:00]</h3>
+        html = html.replace(/^###\s+([^\n]+)/gm, "<h3>$1</h3>");
+        
+        // 2. Replace speaker bold names: **Speaker:** -> <strong>Speaker:</strong>
+        html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+        
+        // 3. Replace timestamps italicized: *[05:00]* -> <em>[05:00]</em>
+        html = html.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+        
+        // 4. Group remaining text segments into paragraphs
+        const paragraphs = html.split(/\n\n+/);
+        const formattedParas = paragraphs.map(p => {
+            if (p.startsWith("<h3>")) {
+                return p; // Headings are already formatted
+            }
+            return `<p>${p}</p>`;
+        });
+
+        cleanedPreview.innerHTML = formattedParas.join("");
+    }
+
+    // --- VTT Parser & Converters ---
+    function convertVTT(vttText, options) {
+        const cues = parseVTT(vttText);
+        if (cues.length === 0) return { text: "", markdown: "", docxItems: [] };
+
+        const cleanTimestamps = options.removeTimestamps;
+        const cleanTags = options.cleanTags;
+        const mergeLines = options.mergeLines;
+        const paragraphSize = options.paragraphSize;
+        const intervalMinutes = options.intervalMinutes;
+
+        // First pass: clean cue texts and extract speakers
+        const processedCues = cues.map(cue => {
+            let text = cue.textLines.join(" ").trim();
+            let speaker = "";
+
+            // Extract speaker from voice tags
+            const voiceMatch = text.match(/<v\s+([^>]+)>/i);
+            if (voiceMatch) {
+                speaker = voiceMatch[1].trim();
+                text = text.replace(/<v\s+[^>]+>/gi, "").replace(/<\/v>/gi, "");
+            } else {
+                // Check if text starts with "Speaker: " or "Speaker Name:"
+                const prefixMatch = text.match(/^([^:\r\n\t]+):/);
+                // Limit speaker name length to 35 chars to avoid normal punctuation
+                if (prefixMatch && prefixMatch[1].length < 35 && !prefixMatch[1].includes("http") && !prefixMatch[1].includes("www")) {
+                    speaker = prefixMatch[1].trim();
+                    text = text.substring(prefixMatch[0].length).trim();
+                }
+            }
+
+            if (cleanTags) {
+                // Remove all formatting tags
+                text = text.replace(/<\/?[^>]+>/g, "");
+                // Decode HTML entities
+                text = text.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'");
+            }
+
+            return {
+                ...cue,
+                cleanedText: text,
+                speaker: speaker
+            };
+        });
+
+        // Group into paragraphs
+        const paragraphs = [];
+        let currentParagraph = {
+            speaker: processedCues[0].speaker,
+            cues: [],
+            text: "",
+            startTimestamp: processedCues[0].start,
+            startTimeSec: processedCues[0].startTimeSec,
+            header: null
+        };
+
+        let lastHeaderSec = -9999;
+        const intervalSecs = intervalMinutes !== "none" ? parseInt(intervalMinutes) * 60 : 0;
+
+        for (let i = 0; i < processedCues.length; i++) {
+            const cue = processedCues[i];
+            const prevCue = i > 0 ? processedCues[i - 1] : null;
+            let cueText = cue.cleanedText.replace(/\s+/g, " ");
+
+            // Check if we should insert a timestamp header
+            let insertHeader = false;
+            let headerLabel = "";
+            if (intervalSecs > 0) {
+                const currentIntervalIndex = Math.floor(cue.startTimeSec / intervalSecs);
+                const lastIntervalIndex = Math.floor(lastHeaderSec / intervalSecs);
+                if (currentIntervalIndex > lastIntervalIndex || lastHeaderSec === -9999) {
+                    insertHeader = true;
+                    lastHeaderSec = cue.startTimeSec;
+                    
+                    const hrs = Math.floor(cue.startTimeSec / 3600);
+                    const mins = Math.floor((cue.startTimeSec % 3600) / 60);
+                    const secs = Math.floor(cue.startTimeSec % 60);
+                    
+                    if (hrs > 0) {
+                        headerLabel = `[${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}]`;
+                    } else {
+                        headerLabel = `[${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}]`;
+                    }
+                }
+            }
+
+            // Decide if we should force a new paragraph
+            let startNewPara = false;
+            
+            if (i === 0) {
+                startNewPara = false;
+            } else if (insertHeader) {
+                startNewPara = true;
+            } else if (cue.speaker !== currentParagraph.speaker && (cue.speaker !== "" || currentParagraph.speaker !== "")) {
+                startNewPara = true;
+            } else if (prevCue && (cue.startTimeSec - prevCue.endTimeSec) > 5.0) {
+                // Silence gap of more than 5 seconds
+                startNewPara = true;
+            } else if (mergeLines) {
+                const prevText = currentParagraph.text.trim();
+                const lastChar = prevText.slice(-1);
+                const isSentenceEnd = [".", "?", "!", '"', "”", ")"].includes(lastChar);
+
+                if (isSentenceEnd) {
+                    const sentenceCount = prevText.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
+                    
+                    if (paragraphSize === "short" && sentenceCount >= 2) {
+                        startNewPara = true;
+                    } else if (paragraphSize === "medium" && sentenceCount >= 5) {
+                        startNewPara = true;
+                    } else if (paragraphSize === "long" && sentenceCount >= 8) {
+                        startNewPara = true;
+                    }
+                }
+            } else {
+                // Without line merging, every VTT block becomes its own paragraph
+                startNewPara = true;
+            }
+
+            if (startNewPara) {
+                if (currentParagraph.cues.length > 0) {
+                    paragraphs.push(currentParagraph);
+                }
+                currentParagraph = {
+                    speaker: cue.speaker || (paragraphSize === "speaker" ? "" : (prevCue ? currentParagraph.speaker : "")),
+                    cues: [cue],
+                    text: cueText,
+                    startTimestamp: cue.start,
+                    startTimeSec: cue.startTimeSec,
+                    header: insertHeader ? headerLabel : null
+                };
+            } else {
+                currentParagraph.cues.push(cue);
+                if (currentParagraph.text === "") {
+                    currentParagraph.text = cueText;
+                } else {
+                    currentParagraph.text += " " + cueText;
+                }
+                if (insertHeader && !currentParagraph.header) {
+                    currentParagraph.header = headerLabel;
+                }
+            }
+        }
+
+        if (currentParagraph.cues.length > 0) {
+            paragraphs.push(currentParagraph);
+        }
+
+        return generateFormats(paragraphs, cleanTimestamps);
+    }
+
+    function parseVTT(vttText) {
+        const lines = vttText.split(/\r?\n/);
+        const cues = [];
+        let currentCue = null;
+        let potentialId = "";
+
+        const timestampRegex = /(\d{2}:)?\d{2}:\d{2}\.\d{3}\s+-->\s+(\d{2}:)?\d{2}:\d{2}\.\d{3}/;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+
+            if (line === "") {
+                currentCue = null;
+                continue;
+            }
+
+            if (line.startsWith("WEBVTT") || line.startsWith("NOTE")) {
+                continue;
+            }
+
+            const match = line.match(timestampRegex);
+            if (match) {
+                const times = line.split("-->");
+                const startStr = times[0].trim();
+                const endStr = times[1].trim().split(/\s+/)[0];
+
+                currentCue = {
+                    id: potentialId,
+                    start: startStr,
+                    end: endStr,
+                    startTimeSec: timeToSeconds(startStr),
+                    endTimeSec: timeToSeconds(endStr),
+                    textLines: []
+                };
+                cues.push(currentCue);
+                potentialId = "";
+            } else {
+                if (currentCue) {
+                    currentCue.textLines.push(line);
+                } else {
+                    potentialId = line;
+                }
+            }
+        }
+        return cues;
+    }
+
+    function timeToSeconds(timeStr) {
+        const parts = timeStr.trim().split(":");
+        let hrs = 0, mins = 0, secs = 0;
+        if (parts.length === 3) {
+            hrs = parseFloat(parts[0]);
+            mins = parseFloat(parts[1]);
+            secs = parseFloat(parts[2]);
+        } else if (parts.length === 2) {
+            mins = parseFloat(parts[0]);
+            secs = parseFloat(parts[1]);
+        }
+        return hrs * 3600 + mins * 60 + secs;
+    }
+
+    function generateFormats(paragraphs, cleanTimestamps) {
+        let textOut = [];
+        let mdOut = [];
+        let docxItems = [];
+
+        paragraphs.forEach((p) => {
+            const speakerPrefix = p.speaker ? `${p.speaker}: ` : "";
+            const mdSpeakerPrefix = p.speaker ? `**${p.speaker}:** ` : "";
+            
+            // Handle Interval Header
+            if (p.header && !cleanTimestamps) {
+                textOut.push(`\n${p.header}\n`);
+                mdOut.push(`\n### ${p.header}\n`);
+                docxItems.push({
+                    type: "heading",
+                    text: p.header
+                });
+            }
+
+            // Paragraph level timestamp if cleanTimestamps is false AND we didn't write an interval header
+            let timeLabel = "";
+            let mdTimeLabel = "";
+            if (!cleanTimestamps && !p.header) {
+                const hrs = Math.floor(p.startTimeSec / 3600);
+                const mins = Math.floor((p.startTimeSec % 3600) / 60);
+                const secs = Math.floor(p.startTimeSec % 60);
+                const timeStr = hrs > 0 
+                    ? `[${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}] `
+                    : `[${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}] `;
+                
+                timeLabel = timeStr;
+                mdTimeLabel = `*${timeStr}* `;
+            }
+
+            // Plain Text
+            textOut.push(`${timeLabel}${speakerPrefix}${p.text}`);
+
+            // Markdown
+            mdOut.push(`${mdTimeLabel}${mdSpeakerPrefix}${p.text}`);
+
+            // Word Docx items
+            docxItems.push({
+                type: "paragraph",
+                speaker: p.speaker,
+                time: !cleanTimestamps && !p.header ? timeLabel.trim() : "",
+                text: p.text
+            });
+        });
+
+        return {
+            text: textOut.join("\n\n"),
+            markdown: mdOut.join("\n\n"),
+            docxItems: docxItems
+        };
+    }
+
+    // --- Helpers & Downloads ---
+    function formatBytes(bytes, decimals = 2) {
+        if (bytes === 0) return "0 Bytes";
+        const k = 1024;
+        const dm = decimals < 0 ? 0 : decimals;
+        const sizes = ["Bytes", "KB", "MB", "GB"];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + " " + sizes[i];
+    }
+
+    function downloadTextFile(fileName, content, extension) {
+        const baseName = fileName.replace(/\.[^/.]+$/, "");
+        const downloadName = `${baseName}_clean.${extension}`;
+        const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = downloadName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function downloadDocx(fileName, docxItems) {
+        if (!window.docx) {
+            showToast("A biblioteca Word (docx) ainda está carregando. Tente novamente.");
+            return;
+        }
+
+        const { Document, Paragraph, TextRun, Packer, HeadingLevel } = window.docx;
+        const baseName = fileName.replace(/\.[^/.]+$/, "");
+        const downloadName = `${baseName}_clean.docx`;
+
+        const children = [];
+
+        // Title
+        children.push(new Paragraph({
+            text: baseName.replace(/_/g, ' '),
+            heading: HeadingLevel.HEADING_1,
+            spacing: { after: 240 }
+        }));
+
+        // Metadata block
+        children.push(new Paragraph({
+            children: [
+                new TextRun({ text: "Transcrição gerada automaticamente por VTTConvert\n", italic: true, color: "555555" }),
+                new TextRun({ text: `Data da conversão: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR')}\n`, italic: true, color: "555555" })
+            ],
+            spacing: { after: 360 }
+        }));
+
+        // Build paragraphs
+        docxItems.forEach(item => {
+            if (item.type === "heading") {
+                children.push(new Paragraph({
+                    text: item.text,
+                    heading: HeadingLevel.HEADING_2,
+                    spacing: { before: 240, after: 120 }
+                }));
+            } else {
+                const paragraphChildren = [];
+
+                if (item.time) {
+                    paragraphChildren.push(new TextRun({
+                        text: `${item.time} `,
+                        color: "888888",
+                        italic: true
+                    }));
+                }
+
+                if (item.speaker) {
+                    paragraphChildren.push(new TextRun({
+                        text: `${item.speaker}: `,
+                        bold: true,
+                        color: "1d4ed8" // Royal blue accent color for speaker tags
+                    }));
+                }
+
+                paragraphChildren.push(new TextRun({
+                    text: item.text
+                }));
+
+                children.push(new Paragraph({
+                    children: paragraphChildren,
+                    spacing: { after: 180 },
+                    lineRule: "auto",
+                    lineSpacing: 240 // 1.5 spacing
+                }));
+            }
+        });
+
+        const doc = new Document({
+            sections: [{
+                properties: {},
+                children: children
+            }]
+        });
+
+        Packer.toBlob(doc).then(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = downloadName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast("Documento Word baixado!");
+        }).catch(err => {
+            console.error("Erro ao gerar docx:", err);
+            showToast("Erro ao gerar documento do Word.");
+        });
+    }
+
+    // --- Toast Notifications ---
+    function showToast(message) {
+        // Remove existing toast if any
+        const existingToast = document.querySelector(".toast-msg");
+        if (existingToast) {
+            existingToast.remove();
+        }
+
+        const toast = document.createElement("div");
+        toast.className = "toast-msg";
+        toast.innerHTML = `<i data-lucide="info" style="width:16px;height:16px;"></i><span>${message}</span>`;
+        document.body.appendChild(toast);
+        
+        if (window.lucide) window.lucide.createIcons();
+
+        // Trigger transition
+        setTimeout(() => {
+            toast.classList.add("show");
+        }, 50);
+
+        // Hide after 3 seconds
+        setTimeout(() => {
+            toast.classList.remove("show");
+            setTimeout(() => {
+                toast.remove();
+            }, 300);
+        }, 3000);
+    }
+});
