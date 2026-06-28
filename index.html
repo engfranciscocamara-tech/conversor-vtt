@@ -38,8 +38,8 @@
             <div class="container hero-grid">
                 <!-- Left: Info & Features -->
                 <div class="hero-info">
-                    <h1 class="hero-title">Converta Legendas em <span class="gradient-text">Textos Organizados</span></h1>
-                    <p class="hero-subtitle">Transforme arquivos de legenda WebVTT (.vtt) em Markdown, Texto Limpo ou documentos do Word perfeitamente formatados.</p>
+                    <h1 class="hero-title">Converta Legendas e <span class="gradient-text">Atas de Reunião</span></h1>
+                    <p class="hero-subtitle">Transforme arquivos de legenda WebVTT (.vtt) e transcrições de reuniões do Teams ou Google Meet (.txt) em Markdown, Texto Limpo ou documentos do Word perfeitamente formatados.</p>
                     
                     <ul class="features-list">
                         <li>
@@ -73,17 +73,17 @@
                 <div class="hero-upload">
                     <div class="upload-card" id="uploadCard">
                         <div class="dropzone" id="dropzone">
-                            <input type="file" id="fileInput" accept=".vtt" multiple style="display: none;">
+                            <input type="file" id="fileInput" accept=".vtt,.txt" multiple style="display: none;">
                             <div class="dropzone-content">
                                 <div class="file-icon-container">
                                     <i data-lucide="file-text" class="file-icon"></i>
-                                    <span class="file-type-badge">VTT</span>
+                                    <span class="file-type-badge">VTT / TXT</span>
                                 </div>
-                                <h3 class="dropzone-title">Carregue suas Legendas</h3>
-                                <p class="dropzone-desc">Arraste e solte o arquivo VTT aqui ou use o botão abaixo</p>
+                                <h3 class="dropzone-title">Carregue suas Transcrições</h3>
+                                <p class="dropzone-desc">Arraste e solte um ou mais arquivos VTT ou TXT (Ata do Teams/Meet) aqui ou use o botão abaixo</p>
                                 <span class="dropzone-or">ou</span>
                                 <button class="btn-primary btn-upload" id="uploadBtn">
-                                    SELECIONAR VTT PARA CONVERTER
+                                    SELECIONAR ARQUIVOS
                                 </button>
                             </div>
                         </div>
@@ -118,9 +118,14 @@
                         <div class="workspace-sidebar">
                             <!-- Uploaded Files List -->
                             <div class="settings-group" id="fileListGroup" style="display: none;">
-                                <h4 class="settings-group-title">
-                                    <i data-lucide="files" class="inline-icon"></i> Arquivos da Fila (<span id="fileCount">0</span>)
-                                </h4>
+                                <div class="file-list-header">
+                                    <h4 class="settings-group-title">
+                                        <i data-lucide="files" class="inline-icon"></i> Fila de Arquivos (<span id="fileCount">0</span>)
+                                    </h4>
+                                    <button class="btn-add-more" id="btnAddMoreFiles" title="Adicionar mais arquivos (VTT/TXT)">
+                                        <i data-lucide="plus" style="width: 12px; height: 12px;"></i> Adicionar
+                                    </button>
+                                </div>
                                 <div class="uploaded-files-list" id="uploadedFilesList">
                                     <!-- Injected dynamically -->
                                 </div>

@@ -1,0 +1,11 @@
+[10:05 AM] Ana Silva:
+Bom dia a todos. Vamos começar a revisar a documentação do projeto.
+
+[10:05 AM] Carlos Santos:
+Bom dia! Já separei as seções de VTT e de arquivos TXT para análise.
+
+[10:06 AM] Ana Silva:
+Excelente. Como ficou a remoção automática de tags HTML e ruídos?
+
+[10:07 AM] Carlos Santos:
+Ficou perfeita. O parser remove as marcações secundárias e junta as sentenças em blocos maiores de parágrafos.

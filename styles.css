@@ -1251,3 +1251,44 @@ body {
     flex-direction: column;
     gap: 8px;
 }
+
+/* Sidebar File List Header Layout */
+.file-list-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
+    width: 100%;
+}
+
+.file-list-header .settings-group-title {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.btn-add-more {
+    background: none;
+    border: 1px solid var(--primary);
+    color: var(--primary);
+    border-radius: var(--radius-sm);
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: var(--transition-fast);
+}
+
+.btn-add-more:hover {
+    background-color: var(--primary);
+    color: white;
+}
+
+/* Workspace drag-over highlight */
+.dragover-workspace .workspace-card {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.15);
+}

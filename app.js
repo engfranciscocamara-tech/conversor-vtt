@@ -90,6 +90,25 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    workspaceSection.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        workspaceSection.classList.add("dragover-workspace");
+    });
+
+    workspaceSection.addEventListener("dragleave", () => {
+        workspaceSection.classList.remove("dragover-workspace");
+    });
+
+    workspaceSection.addEventListener("drop", (e) => {
+        e.preventDefault();
+        workspaceSection.classList.remove("dragover-workspace");
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFiles(files);
+        }
+    });
+
     uploadBtn.addEventListener("click", () => {
         fileInput.click();
     });
@@ -250,7 +269,7 @@ document.addEventListener("DOMContentLoaded", () => {
     btnDownloadAllTxt.addEventListener("click", () => {
         const options = getCurrentOptions();
         uploadedFiles.forEach((file, index) => {
-            const data = convertVTT(file.rawContent, options);
+            const data = convertVTT(file.rawContent, options, file.isTxt);
             setTimeout(() => {
                 downloadTextFile(file.name, data.text, "txt");
             }, index * 300);
@@ -261,7 +280,7 @@ document.addEventListener("DOMContentLoaded", () => {
     btnDownloadAllMd.addEventListener("click", () => {
         const options = getCurrentOptions();
         uploadedFiles.forEach((file, index) => {
-            const data = convertVTT(file.rawContent, options);
+            const data = convertVTT(file.rawContent, options, file.isTxt);
             setTimeout(() => {
                 downloadTextFile(file.name, data.markdown, "md");
             }, index * 300);
@@ -276,7 +295,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         const options = getCurrentOptions();
         uploadedFiles.forEach((file, index) => {
-            const data = convertVTT(file.rawContent, options);
+            const data = convertVTT(file.rawContent, options, file.isTxt);
             setTimeout(() => {
                 downloadDocx(file.name, data.docxItems);
             }, index * 450); // slightly larger delay for docx zip compilation
@@ -333,7 +352,7 @@ document.addEventListener("DOMContentLoaded", () => {
         
         for (let i = 0; i < filesList.length; i++) {
             const file = filesList[i];
-            if (!file.name.endsWith(".vtt")) {
+            if (!file.name.endsWith(".vtt") && !file.name.endsWith(".txt")) {
                 showToast(`Arquivo "${file.name}" ignorado: formato inválido.`);
                 continue;
             }
@@ -346,12 +365,15 @@ document.addEventListener("DOMContentLoaded", () => {
             const promise = new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
+                    const content = e.target.result;
+                    const isTxt = file.name.endsWith(".txt") || (!content.trim().startsWith("WEBVTT") && !content.includes("-->"));
                     resolve({
                         id: 'file-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
                         name: file.name,
                         size: file.size,
                         formattedSize: formatBytes(file.size),
-                        rawContent: e.target.result,
+                        rawContent: content,
+                        isTxt: isTxt,
                         convertedData: null
                     });
                 };
@@ -382,6 +404,8 @@ document.addEventListener("DOMContentLoaded", () => {
             renderFileList();
             processAndPreview();
             
+            fileInput.value = ""; // Clear file input value to allow re-uploading the same file
+            
             window.scrollTo({ top: 0, behavior: "smooth" });
             showToast(`${newFiles.length} arquivo(s) carregado(s)!`);
         });
@@ -390,14 +414,27 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderFileList() {
         uploadedFilesList.innerHTML = "";
         
-        if (uploadedFiles.length > 1) {
+        if (uploadedFiles.length >= 1) {
             fileListGroup.style.display = "flex";
-            batchDownloadSection.style.display = "block";
-            batchCount.textContent = uploadedFiles.length;
             fileCount.textContent = uploadedFiles.length;
+            if (uploadedFiles.length > 1) {
+                batchDownloadSection.style.display = "block";
+                batchCount.textContent = uploadedFiles.length;
+            } else {
+                batchDownloadSection.style.display = "none";
+            }
         } else {
             fileListGroup.style.display = "none";
             batchDownloadSection.style.display = "none";
+        }
+
+        // Bind the "+ Adicionar" button in the queue header
+        const btnAddMoreFiles = document.getElementById("btnAddMoreFiles");
+        if (btnAddMoreFiles) {
+            btnAddMoreFiles.onclick = (e) => {
+                e.preventDefault();
+                fileInput.click();
+            };
         }
 
         uploadedFiles.forEach(file => {
@@ -406,11 +443,14 @@ document.addEventListener("DOMContentLoaded", () => {
             fileItem.className = `file-item ${isActive ? 'active' : ''}`;
             fileItem.setAttribute("data-id", file.id);
             
+            const iconName = file.isTxt ? "file-text" : "file";
+            const typeBadge = file.isTxt ? "TXT" : "VTT";
+            
             fileItem.innerHTML = `
                 <div class="file-item-info">
-                    <i data-lucide="file" class="file-item-icon"></i>
+                    <i data-lucide="${iconName}" class="file-item-icon"></i>
                     <span class="file-item-name" title="${file.name}">${file.name}</span>
-                    <span class="file-item-size">${file.formattedSize}</span>
+                    <span class="file-item-size">${typeBadge} &bull; ${file.formattedSize}</span>
                 </div>
                 <button class="btn-delete-file" title="Remover da fila">
                     <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
@@ -483,7 +523,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Set filenames and UI details
         fileNameDisplay.textContent = activeFile.name;
-        fileSizeDisplay.textContent = activeFile.formattedSize;
+        fileSizeDisplay.textContent = `${activeFile.isTxt ? 'Ata de Reunião (.txt)' : 'Legenda WebVTT (.vtt)'} &bull; ${activeFile.formattedSize}`;
 
         // Settings object
         const options = {
@@ -495,7 +535,7 @@ document.addEventListener("DOMContentLoaded", () => {
         };
 
         // Convert
-        activeFile.convertedData = convertVTT(activeFile.rawContent, options);
+        activeFile.convertedData = convertVTT(activeFile.rawContent, options, activeFile.isTxt);
 
         // Render Original VTT
         originalPreview.textContent = activeFile.rawContent;
@@ -531,9 +571,159 @@ document.addEventListener("DOMContentLoaded", () => {
         cleanedPreview.innerHTML = formattedParas.join("");
     }
 
+    // --- meeting text transcript parser ---
+    function timeStringToSeconds(timeStr) {
+        timeStr = timeStr.trim().toLowerCase();
+        
+        let isPM = timeStr.includes("pm");
+        let isAM = timeStr.includes("am");
+        
+        let cleanTime = timeStr.replace(/\s*(?:am|pm)/g, "").trim();
+        cleanTime = cleanTime.replace(/[\[\]()]/g, "").trim();
+        
+        const parts = cleanTime.split(":");
+        let hrs = 0, mins = 0, secs = 0;
+        
+        if (parts.length === 3) {
+            hrs = parseInt(parts[0], 10);
+            mins = parseInt(parts[1], 10);
+            secs = parseFloat(parts[2]);
+        } else if (parts.length === 2) {
+            hrs = 0;
+            mins = parseInt(parts[0], 10);
+            secs = parseFloat(parts[1]);
+        } else {
+            const val = parseFloat(cleanTime);
+            return isNaN(val) ? 0 : val;
+        }
+        
+        if (isPM && hrs < 12) hrs += 12;
+        if (isAM && hrs === 12) hrs = 0;
+        
+        return hrs * 3600 + mins * 60 + secs;
+    }
+
+    function formatSecondsToTime(totalSecs) {
+        const hrs = Math.floor(totalSecs / 3600);
+        const mins = Math.floor((totalSecs % 3600) / 60);
+        const secs = Math.floor(totalSecs % 60);
+        
+        if (hrs > 0) {
+            return `${String(hrs).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        }
+        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    function parseTextTranscript(text) {
+        const lines = text.split(/\r?\n/);
+        const cues = [];
+        let currentCue = null;
+
+        const regex1 = /^\[(\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)?)\]\s+([^:\n]+):?$/i;
+        const regex2 = /^([^:\[\n]+)\s+\[(\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)?)\]:?$/i;
+        const regex3 = /^([^:\[\n]+)\s+(\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)?):?$/i;
+        const regex4 = /^(\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)?)\s+([^:\n]+):?$/i;
+        const regex5 = /^([^:\n]{1,40}):$/;
+        const regexTimestampOnly = /^[\(\[]?(\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm)?)[\)\]]?$/i;
+
+        let baseTimeSec = null;
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (line === "") continue;
+
+            let match = null;
+            let speaker = "";
+            let timestamp = "";
+
+            if ((match = line.match(regex1))) {
+                timestamp = match[1];
+                speaker = match[2].trim();
+            } else if ((match = line.match(regex2))) {
+                speaker = match[1].trim();
+                timestamp = match[2];
+            } else if ((match = line.match(regex3))) {
+                const possibleTime = match[2].trim();
+                if (possibleTime.includes(":") || possibleTime.toLowerCase().includes("am") || possibleTime.toLowerCase().includes("pm")) {
+                    speaker = match[1].trim();
+                    timestamp = possibleTime;
+                }
+            } else if ((match = line.match(regex4))) {
+                timestamp = match[1];
+                speaker = match[2].trim();
+            } else if ((match = line.match(regexTimestampOnly))) {
+                const tempTime = match[1];
+                if (currentCue && (!currentCue.start || currentCue.start === "00:00" || currentCue.isFallbackStart)) {
+                    currentCue.start = tempTime;
+                    currentCue.isFallbackStart = false;
+                    const sec = timeStringToSeconds(tempTime);
+                    if (baseTimeSec === null) baseTimeSec = sec;
+                    currentCue.startTimeSec = Math.max(0, sec - baseTimeSec);
+                    currentCue.endTimeSec = currentCue.startTimeSec + 5;
+                }
+                continue;
+            } else if ((match = line.match(regex5))) {
+                const name = match[1].trim();
+                if (name && !name.startsWith("#") && !name.startsWith("<")) {
+                    speaker = name;
+                }
+            }
+
+            if (speaker || timestamp) {
+                let startTimeSec = 0;
+                if (timestamp) {
+                    startTimeSec = timeStringToSeconds(timestamp);
+                    if (baseTimeSec === null) {
+                        baseTimeSec = startTimeSec;
+                    }
+                    startTimeSec = Math.max(0, startTimeSec - baseTimeSec);
+                } else {
+                    const lastCue = cues[cues.length - 1];
+                    startTimeSec = lastCue ? lastCue.startTimeSec + 10 : 0;
+                }
+
+                currentCue = {
+                    id: 'cue-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                    start: timestamp || formatSecondsToTime(startTimeSec),
+                    isFallbackStart: !timestamp,
+                    end: "",
+                    startTimeSec: startTimeSec,
+                    endTimeSec: startTimeSec + 5,
+                    speaker: speaker,
+                    textLines: []
+                };
+                cues.push(currentCue);
+            } else {
+                if (currentCue) {
+                    currentCue.textLines.push(line);
+                } else if (cues.length === 0) {
+                    currentCue = {
+                        id: 'cue-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                        start: "00:00",
+                        isFallbackStart: true,
+                        end: "",
+                        startTimeSec: 0,
+                        endTimeSec: 5,
+                        speaker: "",
+                        textLines: [line]
+                    };
+                    cues.push(currentCue);
+                } else {
+                    cues[cues.length - 1].textLines.push(line);
+                }
+            }
+        }
+
+        cues.forEach(cue => {
+            cue.text = cue.textLines.join(" ").trim();
+        });
+
+        return cues;
+    }
+
     // --- VTT Parser & Converters ---
-    function convertVTT(vttText, options) {
-        const cues = parseVTT(vttText);
+    function convertVTT(vttText, options, isTxt = false) {
+        const cues = isTxt ? parseTextTranscript(vttText) : parseVTT(vttText);
         if (cues.length === 0) return { text: "", markdown: "", docxItems: [] };
 
         const cleanTimestamps = options.removeTimestamps;
@@ -545,20 +735,22 @@ document.addEventListener("DOMContentLoaded", () => {
         // First pass: clean cue texts and extract speakers
         const processedCues = cues.map(cue => {
             let text = cue.textLines.join(" ").trim();
-            let speaker = "";
+            let speaker = cue.speaker || "";
 
-            // Extract speaker from voice tags
-            const voiceMatch = text.match(/<v\s+([^>]+)>/i);
-            if (voiceMatch) {
-                speaker = voiceMatch[1].trim();
-                text = text.replace(/<v\s+[^>]+>/gi, "").replace(/<\/v>/gi, "");
-            } else {
-                // Check if text starts with "Speaker: " or "Speaker Name:"
-                const prefixMatch = text.match(/^([^:\r\n\t]+):/);
-                // Limit speaker name length to 35 chars to avoid normal punctuation
-                if (prefixMatch && prefixMatch[1].length < 35 && !prefixMatch[1].includes("http") && !prefixMatch[1].includes("www")) {
-                    speaker = prefixMatch[1].trim();
-                    text = text.substring(prefixMatch[0].length).trim();
+            if (!isTxt) {
+                // Extract speaker from voice tags
+                const voiceMatch = text.match(/<v\s+([^>]+)>/i);
+                if (voiceMatch) {
+                    speaker = voiceMatch[1].trim();
+                    text = text.replace(/<v\s+[^>]+>/gi, "").replace(/<\/v>/gi, "");
+                } else {
+                    // Check if text starts with "Speaker: " or "Speaker Name:"
+                    const prefixMatch = text.match(/^([^:\r\n\t]+):/);
+                    // Limit speaker name length to 35 chars to avoid normal punctuation
+                    if (prefixMatch && prefixMatch[1].length < 35 && !prefixMatch[1].includes("http") && !prefixMatch[1].includes("www")) {
+                        speaker = prefixMatch[1].trim();
+                        text = text.substring(prefixMatch[0].length).trim();
+                    }
                 }
             }
 

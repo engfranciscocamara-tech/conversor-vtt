@@ -1,0 +1,19 @@
+Ana Silva:
+Olá pessoal, bem-vindos à nossa reunião de alinhamento semanal.
+(19:10:00)
+
+Carlos Santos:
+Boa tarde Ana! Todos os desenvolvedores já estão na chamada.
+(19:10:12)
+
+Ana Silva:
+Excelente. Carlos, você pode nos dar um resumo sobre o progresso das tarefas de upload múltiplo?
+(19:10:25)
+
+Carlos Santos:
+Claro! Nós integramos o suporte a filas na barra lateral e o botão de upload incremental. Também adicionamos suporte a arquivos de ata em formato texto. Tudo funciona localmente no navegador.
+(19:11:02)
+
+Ana Silva:
+Maravilhoso. Esse era o resultado que esperávamos. Vamos prosseguir com os testes de homologação.
+(19:11:30)
